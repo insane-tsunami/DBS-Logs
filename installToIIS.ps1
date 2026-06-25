@@ -52,6 +52,7 @@ function Write-WebConfig([string]$Path, [string]$ConnectionString) {
   <system.web>
     <compilation debug="false" targetFramework="4.5" />
     <httpRuntime targetFramework="4.5" executionTimeout="60" />
+    <globalization requestEncoding="utf-8" responseEncoding="utf-8" fileEncoding="utf-8" culture="pt-PT" uiCulture="pt-PT" />
     <customErrors mode="Off" />
   </system.web>
   <system.webServer>
