@@ -18,7 +18,7 @@ function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw "Execute este script numa consola PowerShell como Administrador."
+        throw "Run this script from an elevated PowerShell console."
     }
 }
 
@@ -34,7 +34,7 @@ function New-ConnectionString {
     }
 
     if ($null -eq $SqlPassword) {
-        throw "Quando -SqlUser é informado, também deve fornecer -SqlPassword."
+        throw "When -SqlUser is provided, -SqlPassword must also be provided."
     }
 
     $plainPassword = Get-PlainTextPassword $SqlPassword
@@ -73,7 +73,7 @@ function Write-WebConfig([string]$Path, [string]$ConnectionString) {
 
 Assert-Administrator
 
-Write-Host "[1/8] A validar componentes do IIS..." -ForegroundColor Cyan
+Write-Host "[1/8] Validating IIS components..." -ForegroundColor Cyan
 if (-not $SkipWindowsFeatures) {
     Import-Module ServerManager
     $features = @(
@@ -96,14 +96,14 @@ if (-not $SkipWindowsFeatures) {
 
 Import-Module WebAdministration
 
-Write-Host "[2/8] A criar a pasta de publicação..." -ForegroundColor Cyan
+Write-Host "[2/8] Creating the deployment folder..." -ForegroundColor Cyan
 New-Item -Path $PhysicalPath -ItemType Directory -Force | Out-Null
 
 if (-not $KeepExistingFiles) {
     Get-ChildItem -Path $PhysicalPath -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 }
 
-Write-Host "[3/8] A copiar os ficheiros da aplicação..." -ForegroundColor Cyan
+Write-Host "[3/8] Copying application files..." -ForegroundColor Cyan
 $requiredFiles = @(
     "Viewer.aspx",
     "Logs.aspx.cs",
@@ -113,21 +113,21 @@ $requiredFiles = @(
 
 foreach ($file in $requiredFiles) {
     $source = Join-Path $PSScriptRoot $file
-    if (-not (Test-Path $source)) { throw "Ficheiro obrigatório não encontrado: $source" }
+    if (-not (Test-Path $source)) { throw "Required file not found: $source" }
     Copy-Item $source (Join-Path $PhysicalPath $file) -Force
 }
 
 foreach ($folder in @("App_Code", "Content")) {
     $source = Join-Path $PSScriptRoot $folder
-    if (-not (Test-Path $source)) { throw "Pasta obrigatória não encontrada: $source" }
+    if (-not (Test-Path $source)) { throw "Required folder not found: $source" }
     Copy-Item $source (Join-Path $PhysicalPath $folder) -Recurse -Force
 }
 
-Write-Host "[4/8] A criar o web.config..." -ForegroundColor Cyan
+Write-Host "[4/8] Creating web.config..." -ForegroundColor Cyan
 $connectionString = New-ConnectionString
 Write-WebConfig $PhysicalPath $connectionString
 
-Write-Host "[5/8] A configurar o Application Pool..." -ForegroundColor Cyan
+Write-Host "[5/8] Configuring the Application Pool..." -ForegroundColor Cyan
 if (-not (Test-Path "IIS:\AppPools\$AppPoolName")) {
     New-WebAppPool -Name $AppPoolName | Out-Null
 }
@@ -135,15 +135,15 @@ Set-ItemProperty "IIS:\AppPools\$AppPoolName" -Name managedRuntimeVersion -Value
 Set-ItemProperty "IIS:\AppPools\$AppPoolName" -Name managedPipelineMode -Value "Integrated"
 Set-ItemProperty "IIS:\AppPools\$AppPoolName" -Name processModel.identityType -Value "ApplicationPoolIdentity"
 
-Write-Host "[6/8] A atribuir permissões de leitura à pasta..." -ForegroundColor Cyan
+Write-Host "[6/8] Assigning read permissions to the deployment folder..." -ForegroundColor Cyan
 & icacls.exe $PhysicalPath /grant "IIS AppPool\${AppPoolName}:(OI)(CI)(RX)" /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "Não foi possível atribuir permissões à pasta $PhysicalPath." }
+if ($LASTEXITCODE -ne 0) { throw "Could not assign permissions to $PhysicalPath." }
 
-Write-Host "[7/8] A configurar o Website IIS independente..." -ForegroundColor Cyan
+Write-Host "[7/8] Configuring the standalone IIS website..." -ForegroundColor Cyan
 $existingBinding = Get-WebBinding -Protocol http -Port $Port -ErrorAction SilentlyContinue |
     Where-Object { $_.ItemXPath -notmatch "site\[@name='$SiteName'\]" }
 if ($existingBinding) {
-    throw "A porta $Port já está a ser utilizada por outro Website IIS. Escolha outra porta com -Port."
+    throw "Port $Port is already in use by another IIS website. Choose a different port with -Port."
 }
 
 if (-not (Test-Path "IIS:\Sites\$SiteName")) {
@@ -160,7 +160,7 @@ else {
     }
 }
 
-Write-Host "[8/8] A iniciar o pool e o site..." -ForegroundColor Cyan
+Write-Host "[8/8] Starting the Application Pool and website..." -ForegroundColor Cyan
 if ((Get-WebAppPoolState -Name $AppPoolName).Value -ne "Started") {
     Start-WebAppPool -Name $AppPoolName
 }
@@ -169,9 +169,9 @@ if ((Get-WebsiteState -Name $SiteName).Value -ne "Started") {
 }
 
 Write-Host ""
-Write-Host "Instalação concluída." -ForegroundColor Green
+Write-Host "Installation completed." -ForegroundColor Green
 Write-Host "Website: http://localhost:$Port/"
-Write-Host "Pasta:   $PhysicalPath"
+Write-Host "Folder:  $PhysicalPath"
 Write-Host "Pool:    $AppPoolName"
 Write-Host ""
-Write-Host "Nota: com Integrated Security, conceda ao utilizador IIS AppPool\$AppPoolName acesso somente leitura às bases SOL_Credibox_PRD e DBSPlatform." -ForegroundColor Yellow
+Write-Host "Note: when using Integrated Security, grant IIS AppPool\$AppPoolName read-only access to the SOL_Credibox_PRD and DBSPlatform databases." -ForegroundColor Yellow
