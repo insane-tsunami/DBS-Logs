@@ -154,7 +154,7 @@ else {
     Set-ItemProperty "IIS:\Sites\$SiteName" -Name applicationPool -Value $AppPoolName
 
     $binding = Get-WebBinding -Name $SiteName -Protocol http -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -eq $binding -or $binding.bindingInformation -notmatch ":$Port:") {
+    if ($null -eq $binding -or $binding.bindingInformation -notmatch ":${Port}:") {
         Get-WebBinding -Name $SiteName -Protocol http -ErrorAction SilentlyContinue | Remove-WebBinding
         New-WebBinding -Name $SiteName -Protocol http -IPAddress "*" -Port $Port
     }
